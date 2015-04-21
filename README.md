@@ -1,6 +1,6 @@
 # Gulp-Google-Drive
 
-Gulp module to load all files from a Google Drive folder.
+Gulp module to load all files from a Google Drive folder and emit them in a Vinyl stream.
 
 ### Usage
 
@@ -16,3 +16,9 @@ Gulp module to load all files from a Google Drive folder.
         .pipe(drive.fetch)
         .pipe(remember('assets'))
         .pipe(gulp.dest('public/'))
+
+### TODO
+
+- Make files cacheable
+
+- Load nested directories recursively
