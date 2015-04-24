@@ -4,6 +4,15 @@ File = require('vinyl')
 google = require('googleapis')
 request = require('request')
 
+makeFilename = (fileInfo)->
+    extname = '.' + fileInfo.fileExtension
+    filename = fileInfo.title
+
+    if (filename.indexOf(extname) isnt filename.length - extname.length)
+        filename += extname
+
+    return filename
+
 module.exports = (options)->
     clientId = options.clientId
     clientSecret = options.clientSecret
@@ -40,7 +49,7 @@ module.exports = (options)->
                 if err then return callback(err)
 
                 file = new File({
-                    path: fileInfo.originalFilename
+                    path: makeFilename(fileInfo)
                     contents: new es.Stream.PassThrough
                 })
                 # TODO: use info to make File correctly cacheable
@@ -52,7 +61,7 @@ module.exports = (options)->
         return fileStream
 
     output.fetch = es.map((file, callback)->
-        debug("downloading file %s from %s", file.info.originalFilename, file.info.webContentLink)
+        debug("downloading file %s from %s", file.path, file.info.webContentLink)
         request.get(file.info.webContentLink).pipe(file.contents)
         callback(null, file)
     )
