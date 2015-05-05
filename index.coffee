@@ -20,7 +20,11 @@ makeThumbnail = (file)->
             contents: new es.Stream.PassThrough
         })
         debug("downloading thumbnail %s from %s", thumb.path, file.info.thumbnailLink)
-        request.get(file.info.thumbnailLink).pipe(thumb.contents)
+        req = request.get(file.info.thumbnailLink)
+        req.pipe(thumb.contents)
+        req.on('error', (err)->
+            thumb.contents.emit('error', err)
+        )
         return thumb
     else
         return null
@@ -77,9 +81,17 @@ module.exports = (options)->
             thumb = makeThumbnail(file)
             if thumb
                 @emit('data', thumb)
+                thumb.contents.on('error', (err)=>
+                    @emit('error', err)
+                )
 
             debug("downloading file %s from %s", file.path, file.info.webContentLink)
-            request.get(file.info.webContentLink).pipe(file.contents)
+            req = request.get(file.info.webContentLink)
+            req.pipe(file.contents)
+            req.on('error', (err)->
+                @emit('error', err)
+            )
+
             @emit('data', file)
         else
             debug("skipping file %s", file.info.title)
