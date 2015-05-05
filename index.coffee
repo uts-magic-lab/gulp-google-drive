@@ -13,6 +13,18 @@ makeFilename = (fileInfo)->
 
     return filename
 
+makeThumbnail = (file)->
+    if file.info.thumbnailLink
+        thumb = new File({
+            path: 't/'+file.path
+            contents: new es.Stream.PassThrough
+        })
+        debug("downloading thumbnail %s from %s", thumb.path, file.info.thumbnailLink)
+        request.get(file.info.thumbnailLink).pipe(thumb.contents)
+        return thumb
+    else
+        return null
+
 module.exports = (options)->
     clientId = options.clientId
     clientSecret = options.clientSecret
@@ -44,7 +56,7 @@ module.exports = (options)->
         )
 
         fileStream = stream.pipe(es.map((file, callback)->
-            debug("fetching info for file %s", file.id)
+            debug("loading info for file %s", file.id)
             drive.files.get({fileId: file.id}, (err, fileInfo)->
                 if err then return callback(err)
 
@@ -60,18 +72,18 @@ module.exports = (options)->
 
         return fileStream
 
-    output.fetch = es.map((file, callback)->
+    output.fetch = es.through((file)->
         if file.info.webContentLink
+            thumb = makeThumbnail(file)
+            if thumb
+                @emit('data', thumb)
+
             debug("downloading file %s from %s", file.path, file.info.webContentLink)
-            r = request.get(file.info.webContentLink).pipe(file.contents)
-            r.on('error', callback)
-            r.on('end', ->
-                debug("finished downloading %s", file.path)
-            )
+            request.get(file.info.webContentLink).pipe(file.contents)
+            @emit('data', file)
         else
             debug("skipping file %s", file.info.title)
             file.contents.end()
-        callback(null, file)
     )
-    
+  
     return output
