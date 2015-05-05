@@ -68,8 +68,8 @@ module.exports = (options)->
                     path: makeFilename(fileInfo)
                     contents: new es.Stream.PassThrough
                 })
-                # TODO: use info to make File correctly cacheable
                 file.info = fileInfo
+                file.checksum = fileInfo.md5Checksum
                 callback(null, file)
             )
         ))
