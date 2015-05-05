@@ -1,6 +1,6 @@
 {
   "name": "gulp-google-drive",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Gulp module to load files from Google Drive",
   "repository": "https://github.com/uts-magic-lab/gulp-google-drive.git",
   "main": "index.js",

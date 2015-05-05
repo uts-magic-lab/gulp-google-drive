@@ -8,8 +8,8 @@ makeFilename = (fileInfo)->
     extname = '.' + fileInfo.fileExtension
     filename = fileInfo.title
 
-    if (filename.indexOf(extname) isnt filename.length - extname.length)
-        filename += extname
+    # make sure filename includes extension
+    filename.replace(new RegExp('('+extname+')?$','i'), extname)
 
     return filename
 
@@ -61,8 +61,16 @@ module.exports = (options)->
         return fileStream
 
     output.fetch = es.map((file, callback)->
-        debug("downloading file %s from %s", file.path, file.info.webContentLink)
-        request.get(file.info.webContentLink).pipe(file.contents)
+        if file.info.webContentLink
+            debug("downloading file %s from %s", file.path, file.info.webContentLink)
+            r = request.get(file.info.webContentLink).pipe(file.contents)
+            r.on('error', callback)
+            r.on('end', ->
+                debug("finished downloading %s", file.path)
+            )
+        else
+            debug("skipping file %s", file.info.title)
+            file.contents.end()
         callback(null, file)
     )
     
