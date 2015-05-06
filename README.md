@@ -16,9 +16,3 @@ Gulp module to load all files from a Google Drive folder and emit them in a Viny
         .pipe(drive.fetch)
         .pipe(remember('assets'))
         .pipe(gulp.dest('public/'))
-
-### TODO
-
-- Make files cacheable
-
-- Load nested directories recursively

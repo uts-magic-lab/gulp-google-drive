@@ -13,13 +13,13 @@ makeFilename = (fileInfo)->
 
     return filename
 
-makeThumbnail = (file)->
+makeThumbnailFile = (file)->
     if file.info.thumbnailLink
         thumb = new File({
-            path: 't/'+file.path
+            path: file.path.replace(file.base, 't/')
             contents: new es.Stream.PassThrough
         })
-        debug("downloading thumbnail %s from %s", thumb.path, file.info.thumbnailLink)
+        # debug("downloading thumbnail %s from %s", thumb.path, file.info.thumbnailLink)
         req = request.get(file.info.thumbnailLink)
         req.pipe(thumb.contents)
         req.on('error', (err)->
@@ -43,42 +43,78 @@ module.exports = (options)->
     client.setCredentials({refresh_token: refreshToken})
     drive = google.drive({version: 'v2', auth: client})
 
-    output = {}
-    output.src = (folderId, options)->
-        # create an event-stream to be returned
-        stream = new es.Stream()
+    loadInfo = (fileInfo, callback)->
+        drive.files.get({fileId: fileInfo.id}, (err, fileInfo)->
+            if err then return callback(err)
+            debug("loaded info for %s", fileInfo.title)
 
-        # load the folder and emit each fileInfo on it
-        drive.children.list({folderId: folderId}, (err, folder)->
-            debug("loaded #{folder.items.length} items")
-            if err then return stream.emit('error', err)
-
-            for item in folder.items or []
-                stream.emit('data', item)
-
-            stream.emit('end')
+            file = new File({
+                path: makeFilename(fileInfo)
+                contents: new es.Stream.PassThrough
+            })
+            file.info = fileInfo
+            file.checksum = fileInfo.md5Checksum
+            callback(null, file)
         )
 
-        fileStream = stream.pipe(es.map((file, callback)->
-            debug("loading info for file %s", file.id)
-            drive.files.get({fileId: file.id}, (err, fileInfo)->
-                if err then return callback(err)
+    loadChildren = (folder)->
+        @pause()
+        drive.children.list({folderId: folder.info.id}, (err, children)=>
+            if err then return @emit('error', err)
+            debug("loaded folder %s with %s items", folder.path, children.items?.length)
 
-                file = new File({
-                    path: makeFilename(fileInfo)
-                    contents: new es.Stream.PassThrough
-                })
-                file.info = fileInfo
-                file.checksum = fileInfo.md5Checksum
-                callback(null, file)
+            for item in children.items or []
+                @emit('data', item)
+            @resume()
+        )
+
+    loadRecursively = (item)->
+        childDirs = []
+
+        if item.info.mimeType is 'application/vnd.google-apps.folder'
+            @pause()
+            childStream = es.readArray([item])
+            .pipe(es.through(loadChildren))
+            .pipe(es.map(loadInfo))
+            .pipe(es.through(loadRecursively))
+            .pipe(es.mapSync((file)->
+                # prepend parent's path to child's path
+                file.path = item.path + '/' + file.path
+                return file
+            ))
+            childStream.on('error', (err)->
+                @emit('error', err)
             )
+            childStream.on('data', (data)=>
+                @emit('data', data)
+            )
+            childStream.on('end', =>
+                @resume()
+            )
+        else
+            @emit('data', item)
+
+    plugin = {}
+    plugin.src = (folderId)->
+        basePath = ''
+
+        es.readArray([{id: folderId}])
+        .pipe(es.map(loadInfo))
+        .pipe(es.mapSync((file)->
+            # determine the name of the source folder
+            basePath = file.path + '/'
+            return file
+        ))
+        .pipe(es.through(loadRecursively))
+        .pipe(es.mapSync((file)->
+            # set every file.base to the source folder
+            file.base = basePath
+            return file
         ))
 
-        return fileStream
-
-    output.fetch = es.through((file)->
+    plugin.fetch = es.through((file)->
         if file.info.webContentLink
-            thumb = makeThumbnail(file)
+            thumb = makeThumbnailFile(file)
             if thumb
                 @emit('data', thumb)
                 thumb.contents.on('error', (err)=>
@@ -94,8 +130,8 @@ module.exports = (options)->
 
             @emit('data', file)
         else
-            debug("skipping file %s", file.info.title)
+            debug("skipping file %s")
             file.contents.end()
     )
   
-    return output
+    return plugin
