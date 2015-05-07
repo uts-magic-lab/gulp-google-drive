@@ -3,6 +3,7 @@ es = require('event-stream')
 File = require('vinyl')
 google = require('googleapis')
 request = require('request')
+gutil = require('gulp-util')
 
 makeFilename = (fileInfo)->
     extname = '.' + fileInfo.fileExtension
@@ -121,7 +122,8 @@ module.exports = (options)->
                     @emit('error', err)
                 )
 
-            debug("downloading file %s from %s", file.path, file.info.webContentLink)
+            gutil.log("Downloading file '#{gutil.colors.magenta(file.path)}' from #{gutil.colors.blue(file.info.webContentLink)}")
+            # debug("downloading file %s from %s", file.path, file.info.webContentLink)
             req = request.get(file.info.webContentLink)
             req.pipe(file.contents)
             req.on('error', (err)->
@@ -130,7 +132,7 @@ module.exports = (options)->
 
             @emit('data', file)
         else
-            debug("skipping file %s")
+            debug("skipping file %s", file.path)
             file.contents.end()
     )
   
