@@ -44,6 +44,8 @@ module.exports = (options)->
     client.setCredentials({refresh_token: refreshToken})
     drive = google.drive({version: 'v2', auth: client})
 
+    pool = {maxSockets: options.maxSockets ? 8}
+
     loadInfo = (fileInfo, callback)->
         drive.files.get({fileId: fileInfo.id}, (err, fileInfo)->
             if err then return callback(err)
@@ -122,11 +124,11 @@ module.exports = (options)->
                     @emit('error', err)
                 )
 
-            gutil.log("Downloading file '#{gutil.colors.magenta(file.path)}' from #{gutil.colors.blue(file.info.webContentLink)}")
-            # debug("downloading file %s from %s", file.path, file.info.webContentLink)
-            req = request.get(file.info.webContentLink)
+            gutil.log("Downloading '#{gutil.colors.magenta(file.info.title)}' from #{gutil.colors.blue(file.info.webContentLink)}")
+            req = request.get(file.info.webContentLink, {pool: pool})
             req.pipe(file.contents)
-            req.on('error', (err)->
+            req.on('error', (err)=>
+                console.error("Error downloading '#{gutil.colors.magenta(file.info.title)}'", err)
                 @emit('error', err)
             )
 
