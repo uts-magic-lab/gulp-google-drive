@@ -4,6 +4,7 @@ File = require('vinyl')
 google = require('googleapis')
 request = require('request')
 gutil = require('gulp-util')
+falloff = 100
 
 makeFilename = (fileInfo)->
     extname = '.' + fileInfo.fileExtension
@@ -46,10 +47,22 @@ module.exports = (options)->
 
     pool = {maxSockets: options.maxSockets ? 8}
 
-    loadInfo = (fileInfo, callback)->
-        drive.files.get({fileId: fileInfo.id}, (err, fileInfo)->
-            if err then return callback(err)
+    loadInfo = (metadata, callback)->
+        drive.files.get({fileId: metadata.id}, (err, fileInfo)->
+            if err
+                if err.code is 403
+                    debug("Rate limited. Trying again after %s ms", falloff)
+                    if falloff > 300000
+                        return callback(err)
+                    setTimeout(->
+                        loadInfo(metadata, callback)
+                    , falloff)
+                    falloff = falloff + 100
+                    return
+                else
+                    return callback(err)
             debug("loaded info for %s", fileInfo.title)
+            falloff = Math.max(falloff/1.1, 100)
 
             file = new File({
                 path: makeFilename(fileInfo)
